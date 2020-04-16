@@ -21,10 +21,12 @@ unsigned long modularExponentiation(unsigned long a, unsigned long b, unsigned l
 
 
 int main(int argc, char *argv[]){
+	int seed;
 	if(argc == 2){
 		if(strcmp(argv[1], "keygen" ) == 0){
-			printf("hello");
-			keygen(2);
+			printf("Please input a seed for the random number generator: ");
+			scanf("%d", &seed);
+			keygen(seed);
 		}
 	}
 
@@ -32,20 +34,17 @@ int main(int argc, char *argv[]){
 }
 
 int keygen(unsigned long seed){
-	int cp;
+	clock_t t; 
+    t = clock(); 
+	FILE *fptr;
 	unsigned long p=1,q,e2,d;
 	int g = 2;
 	unsigned long max = 0x7FFFFFFFUL; //gives largest number in 31 bit range
-	printf("max is %016lx\n", max);
-	int count = 0;
 	// k= 32
 	//e2 = gd mod p
 	//generate safe prime P
 	// select a k-1 bit prime q so that q mod 12 == 5
 	// compute p = 2q + 1 and test whether p is prime
-	// how many times to test miller-rabin?
-	//q = (0x80000000UL /2) - 1;
-	//printf("q min is %016lx\n", q);
 	while(1){
 		srand(time(NULL));
 		q = 1 + rand() % max ;
@@ -68,24 +67,30 @@ int keygen(unsigned long seed){
 			}
 		}
 	}
-	
-	printf("outside while loop\n");
 	srand(seed);
 	d = 1 + rand() % p-2;
 	//e1^d % p
 	e2 = modularExponentiation(g, d, p);
-	/*cp = fopen("pubkey.txt", "w+");
-		if(cp == NULL) {
-			perror("Error: ");
-			exit(1);
-		}
-	fwrite(&p, sizeof(p)-1, 1, cp);
-	fwrite(' ', 1, 1, cp);
-	fwrite(&g, sizeof(g)-1, 1, cp);
-	fwrite(' ', 1, 1, cp);
-	fwrite(&d, sizeof(d)-1, 1, cp);
-	fclose(cp);*/
-	printf(" g=%d, e2=%08lx, p = %08lx,\n", g,e2,p);
+	
+	fptr = fopen("pubkey.txt", "w+");
+	fprintf(fptr, "%lX", p);
+	fprintf(fptr, "%c", ' ');
+	fprintf(fptr, "%X", g);
+	fprintf(fptr, "%c", ' ');
+	fprintf(fptr, "%lX", e2);
+	fclose(fptr);
+	fptr = fopen("prikey.txt", "w+");
+	fprintf(fptr, "%lX", p);
+	fprintf(fptr, "%c", ' ');
+	fprintf(fptr, "%X", g);
+	fprintf(fptr, "%c", ' ');
+	fprintf(fptr, "%lX", d);
+	fclose(fptr);
+	t = clock() - t; 
+    double time_taken = ((double)t)/CLOCKS_PER_SEC; // in seconds 
+  
+    printf("kegen() took %f seconds to execute \n", time_taken); 
+	printf(" g=%d, e2=%08lx, p = %08lx,d = %08lx\n", g,e2,p,d);
 	return 0;
 }
 
