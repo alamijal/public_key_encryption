@@ -21,11 +21,12 @@ int millerRabin(unsigned long n, int s);
 int witness(unsigned long a, unsigned long n);
 unsigned long modularExponentiation(unsigned long a, unsigned long b, unsigned long n);
 int encrypt(FILE * fp,FILE * keyfp);
-int decrypt(FILE * fp);
+int decrypt(FILE * fp, FILE * keyfp);
 unsigned long * encrypt_helper(unsigned long m, unsigned long p, unsigned int g, unsigned long e2);
 void doseed(void);
 int main(int argc, char *argv[]){
-
+	FILE * fp;
+	FILE * keyfp;
 	int seed;
 	if(argc == 2){
 		if(strcmp(argv[1], "keygen" ) == 0){
@@ -35,17 +36,40 @@ int main(int argc, char *argv[]){
 		}
 	}
 	else if(argc == 4 && strncmp("-e", argv[3], 2) == 0){
-		FILE * fp = fopen(argv[2], "r");
-		FILE * keyfp = fopen(argv[1], "r");
+		fp = fopen(argv[2], "r");
+		keyfp = fopen(argv[1], "r");
 		printf("encrypting...\n");
 		encrypt(fp, keyfp);
 	}
 	else if(argc == 4 && strncmp("-d", argv[3], 2) == 0){
-		FILE * fp = fopen(argv[2], "r");
+		fp = fopen(argv[2], "r");
+		keyfp = fopen(argv[1], "r");
 		printf("decrypting...\n");
-		decrypt(fp);
+		decrypt(fp, keyfp);
 	}
 
+	return 0;
+}
+int decrypt(FILE * fp, FILE * keyfp){
+	unsigned long p, d, m;
+	int g;
+	unsigned long C[2];
+	int retval = fscanf(keyfp, "%lx", &p) ; 
+	retval = fscanf(keyfp, "%x", &g) ; 
+	retval = fscanf(keyfp, "%lx", &d) ; 
+	printf("read that p = %lx, g = %d, d = %lx\n", p, g, d);
+	
+	while(fscanf(fp, "%ld %ld",&C[0], &C[1] ) != EOF){
+		printf("C0 = %ld  C1 = %ld\n", C[0], C[1]);
+		//C1 ^p-1- d·C2 mod p = m
+		//(A * B) mod C = (A mod C * B mod C) mod C
+
+		unsigned long exp = p-1-d;
+		printf("exp = %lx\n", exp);
+		printf("mod is %lx\n", modularExponentiation(C[0], exp, 1));
+		m = (modularExponentiation(C[0], exp, p) * (C[1] %p) ) % p;
+		printf("m = %ld\n", m);
+	}
 	return 0;
 }
 
@@ -70,6 +94,8 @@ int encrypt(FILE * fp, FILE * keyfp){
 	retval = fscanf(keyfp, "%lx", &e2) ; 
 	printf("read that p = %ld, g = %d, e2 = %ld\n", p, g, e2);
 	while(fgets(buf,4, fp) != NULL){
+		buf[4] = '\n';
+		printf("buf is %s\n", buf);
 		for(int i=0; i< 4; i++){
 			block[i] = (unsigned long)strtoul(&buf[i], NULL, 10);
 			printf("block %d is %lx\n", i, block[i]);
@@ -106,9 +132,7 @@ unsigned long * encrypt_helper(unsigned long m, unsigned long p, unsigned int g,
 	fclose(fptr);
 	return C;
 }
-int decrypt(FILE * fp){
-	return 0;
-}
+
 
 int keygen(unsigned long seed){
 	clock_t t; 
