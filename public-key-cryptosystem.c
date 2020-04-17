@@ -14,6 +14,7 @@
 #include <string.h>
 #include<time.h> 
 #include<math.h>
+#include <sys/time.h>
 
 int keygen(unsigned long seed);
 int millerRabin(unsigned long n, int s);
@@ -22,7 +23,7 @@ unsigned long modularExponentiation(unsigned long a, unsigned long b, unsigned l
 int encrypt(FILE * fp,FILE * keyfp);
 int decrypt(FILE * fp);
 unsigned long * encrypt_helper(unsigned long m, unsigned long p, unsigned int g, unsigned long e2);
-
+void doseed(void);
 int main(int argc, char *argv[]){
 
 	int seed;
@@ -46,6 +47,13 @@ int main(int argc, char *argv[]){
 	}
 
 	return 0;
+}
+
+void doseed(void) {
+    struct timeval tp;
+    gettimeofday(&tp, NULL);
+    unsigned seed = (unsigned)tp.tv_usec;
+    srand(seed);
 }
 int encrypt(FILE * fp, FILE * keyfp){
 	//m = 32 (block size)
@@ -84,16 +92,13 @@ unsigned long * encrypt_helper(unsigned long m, unsigned long p, unsigned int g,
 	FILE * fptr;
 	static unsigned long C[2];
 	// C1 = gk mod p
-	// C2 =e2k·mmodp
-	srand(time(NULL));
+	// C2 =e2k·m mod p
+	doseed();
 	unsigned long k =  rand() % (p-1) ;
 	C[0] = modularExponentiation(g, k, p);
 	//(A * B) mod C = (A mod C * B mod C) mod C
 	// e2^k * m mod p = (e2^k mod p )* (m mod p) mod p
-	C[1] = ((modularExponentiation(e2,k,p) * modularExponentiation(m,1,p)))% p ;//modularExponentiation(e2, k, p) * m ?;
-	printf("C[1]  = %lx\n", C[1]);
-	
-
+	C[1] = ((modularExponentiation(e2,k,p) * modularExponentiation(m,1,p)))% p ;
 	fptr = fopen("ctext.txt", "a");
 	fprintf(fptr, "%ld", C[0]);
 	fprintf(fptr, "%c", ' ');
@@ -117,8 +122,9 @@ int keygen(unsigned long seed){
 	//generate safe prime P
 	// select a k-1 bit prime q so that q mod 12 == 5
 	// compute p = 2q + 1 and test whether p is prime
+	
 	while(1){
-		srand(time(NULL));
+		doseed();
 		q = 1 + rand() % max ;
 		//truncate q to 32 bits;
 		q = q &  0x00000000FFFFFFFFUL;
@@ -168,8 +174,9 @@ int keygen(unsigned long seed){
 /* return 1 if prime, 0 for composite  */
 int millerRabin(unsigned long n, int s){
 	int a;
+
 	for(int j=1; j<=s;j++){
-		srand(time(NULL)); 
+		doseed();
 		a= (rand() % ((n-1) - 1 + 1)) + 1; 
 		if(witness(a, n) == 1){
 			return 0;
