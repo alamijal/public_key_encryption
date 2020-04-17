@@ -13,14 +13,18 @@
 #include <math.h>
 #include <string.h>
 #include<time.h> 
+#include<math.h>
 
 int keygen(unsigned long seed);
 int millerRabin(unsigned long n, int s);
 int witness(unsigned long a, unsigned long n);
 unsigned long modularExponentiation(unsigned long a, unsigned long b, unsigned long n);
-
+int encrypt(FILE * fp,FILE * keyfp);
+int decrypt(FILE * fp);
+unsigned long * encrypt_helper(unsigned long m, unsigned long p, unsigned int g, unsigned long e2);
 
 int main(int argc, char *argv[]){
+
 	int seed;
 	if(argc == 2){
 		if(strcmp(argv[1], "keygen" ) == 0){
@@ -29,7 +33,75 @@ int main(int argc, char *argv[]){
 			keygen(seed);
 		}
 	}
+	else if(argc == 4 && strncmp("-e", argv[3], 2) == 0){
+		FILE * fp = fopen(argv[2], "r");
+		FILE * keyfp = fopen(argv[1], "r");
+		printf("encrypting...\n");
+		encrypt(fp, keyfp);
+	}
+	else if(argc == 4 && strncmp("-d", argv[3], 2) == 0){
+		FILE * fp = fopen(argv[2], "r");
+		printf("decrypting...\n");
+		decrypt(fp);
+	}
 
+	return 0;
+}
+int encrypt(FILE * fp, FILE * keyfp){
+	//m = 32 (block size)
+	// modulo = 33 bit
+	//read p, g and e2 from key file
+	unsigned long *C;
+	char buf[5];
+	unsigned long block[4];
+	unsigned long m;
+	unsigned long p, e2;
+	int g;
+	int retval = fscanf(keyfp, "%lx", &p) ; 
+	retval = fscanf(keyfp, "%x", &g) ; 
+	retval = fscanf(keyfp, "%lx", &e2) ; 
+	printf("read that p = %ld, g = %d, e2 = %ld\n", p, g, e2);
+	while(fgets(buf,4, fp) != NULL){
+		for(int i=0; i< 4; i++){
+			block[i] = (unsigned long)strtoul(&buf[i], NULL, 10);
+			printf("block %d is %lx\n", i, block[i]);
+		}
+		block[0] = block[0] << 24;
+		block[1] = block[1] << 16;
+		block[2] = block[2] << 8;
+		m = block[0] | block[1] | block[2] | block[3];
+		printf("m is %08lx\n", m);
+		if(m >= p){
+			printf("Error m is not less than p\n");
+		}
+		C = encrypt_helper(m, p, g, e2);
+		printf("C1 = %lx C2 = %lx\n", C[0], C[1]);
+   	}
+   	return 0;
+
+}
+unsigned long * encrypt_helper(unsigned long m, unsigned long p, unsigned int g, unsigned long e2){
+	FILE * fptr;
+	static unsigned long C[2];
+	// C1 = gk mod p
+	// C2 =e2k·mmodp
+	srand(time(NULL));
+	unsigned long k =  rand() % (p-1) ;
+	C[0] = modularExponentiation(g, k, p);
+	//(A * B) mod C = (A mod C * B mod C) mod C
+	// e2^k * m mod p = (e2^k mod p )* (m mod p) mod p
+	C[1] = ((modularExponentiation(e2,k,p) * modularExponentiation(m,1,p)))% p ;//modularExponentiation(e2, k, p) * m ?;
+	printf("C[1]  = %lx\n", C[1]);
+	
+
+	fptr = fopen("ctext.txt", "a");
+	fprintf(fptr, "%ld", C[0]);
+	fprintf(fptr, "%c", ' ');
+	fprintf(fptr, "%ld", C[1]);
+	fclose(fptr);
+	return C;
+}
+int decrypt(FILE * fp){
 	return 0;
 }
 
@@ -39,8 +111,8 @@ int keygen(unsigned long seed){
 	FILE *fptr;
 	unsigned long p=1,q,e2,d;
 	int g = 2;
-	unsigned long max = 0x7FFFFFFFUL; //gives largest number in 31 bit range
-	// k= 32
+	unsigned long max = 0xFFFFFFFFUL; //gives largest number in 32 bit range
+	// k= 33
 	//e2 = gd mod p
 	//generate safe prime P
 	// select a k-1 bit prime q so that q mod 12 == 5
@@ -48,19 +120,18 @@ int keygen(unsigned long seed){
 	while(1){
 		srand(time(NULL));
 		q = 1 + rand() % max ;
-		//truncate q to 31 bits;
-		q = q &  0x000000007FFFFFFFUL;
+		//truncate q to 32 bits;
+		q = q &  0x00000000FFFFFFFFUL;
 		//set lowest bit to 1 to ensure it is not even
 		q = q | 1;
 
 		if(q >= 0x3fffffffUL && millerRabin(q,1) == 1 && (q % 12) == 5){
 			p = (2*q) + 1;
-			//set high bit to 1 to ensure large enough
 			//truncate
-			p = p & 0x00000000FFFFFFFFUL;
+			p = p & 0x00000001FFFFFFFFUL;
 			//p = p | 0x80000000UL;
-			//check that p's 32nd bit is 1, plus truncate to 32 bits
-			unsigned long bit = p & 0x00000001UL;
+			//check that p's last bit is 1
+			unsigned long bit = p & 0x000000001UL;
 			if(bit == 1 ){
 				//printf("odd p=%08lx\n", p);
 				if(millerRabin(p,1) == 1) break;
