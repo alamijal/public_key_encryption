@@ -3,7 +3,7 @@
  * CS 427
  * Instructor Farhana Kabir
  * Project 2
- * April 2020
+ * April 18 2020
 
 */
 
@@ -25,6 +25,7 @@ int encrypt(FILE * fp,FILE * keyfp);
 int decrypt(FILE * fp, FILE * keyfp);
 int encrypt_helper(u_int32_t m, unsigned long p, unsigned int g, unsigned long e2);
 void doseed(void);
+void checkError(FILE * fp);
 int main(int argc, char *argv[]){
 	FILE * fp;
 	FILE * keyfp;
@@ -38,63 +39,76 @@ int main(int argc, char *argv[]){
 	}
 	else if(argc == 4 && strncmp("-e", argv[3], 2) == 0){
 		fp = fopen(argv[2], "r");
+		checkError(fp);
 		keyfp = fopen(argv[1], "r");
+		checkError(keyfp);
 		printf("encrypting...\n");
 		encrypt(fp, keyfp);
 	}
 	else if(argc == 4 && strncmp("-d", argv[3], 2) == 0){
 		fp = fopen(argv[2], "r");
+		checkError(fp);
 		keyfp = fopen(argv[1], "r");
+		checkError(keyfp);
 		printf("decrypting...\n");
 		decrypt(fp, keyfp);
+	}
+	else{
+		printf("Usage: \n");
+		printf("./public-key-cryptosystem keygen\n");
+		printf("./public-key-cryptosystem  key.txt plaintext.txt -e (for encryption)\n");
+		printf("./public-key-cryptosystem  key.txt ciphertext.txt -d (for decryption)\n");
 	}
 
 	return 0;
 }
+void checkError(FILE * fp){
+	if(fp == NULL){
+		perror("Error: ");
+		exit(1);
+	}
+}
+
+void checkError2(FILE * fp){
+	if(fp != 0){
+		perror("Error: ");
+		exit(1);
+	}
+}
+
 int decrypt(FILE * fp, FILE * keyfp){
 	FILE * fptr;
 	unsigned long p, d;
 	u_int32_t m;
 	int g;
 	unsigned long C[2];
-	int retval = fscanf(keyfp, "%lx", &p) ; 
-	retval = fscanf(keyfp, "%x", &g) ; 
-	retval = fscanf(keyfp, "%lx", &d) ; 
-	printf("read that p = %lx, g = %d, d = %lx\n", p, g, d);
+	fscanf(keyfp, "%lx", &p) ; 
+	fscanf(keyfp, "%x", &g) ; 
+	fscanf(keyfp, "%lx", &d) ; 
 	fptr = fopen("dtext.txt", "a");
+	checkError(fptr);
+	printf("Decoded Message:\n");
 	while(fscanf(fp, "%ld %ld",&C[0], &C[1] ) != EOF){
-		printf("C0 = %ld  C1 = %ld\n", C[0], C[1]);
 		//C1 ^p-1- d·C2 mod p = m
 		//(A * B) mod C = (A mod C * B mod C) mod C
-
-		unsigned long exp = p-1-d;
-		printf("exp = %lx\n", exp);
-		printf("mod is %lx\n", modularExponentiation(C[0], exp, 1));
-		m = (modularExponentiation(C[0], exp, p) * (C[1] %p) ) % p;
-		printf("m = %ld\n", m);
+		m = (modularExponentiation(C[0], (p-1-d), p) * (C[1] %p) ) % p;
 		decToAscii(m, fptr);
-
 	}
-	fclose(fptr);
+	fclose(fptr) ;
 	return 0;
 }
 int decToAscii(u_int32_t m, FILE * fptr){
-	
 	char text;
 	u_int32_t block[4];
-	
 	block[0] = (m & 0xFF000000UL) >> 24;
 	block[1] = (m & 0x00FF0000UL) >> 16;
 	block[2] = (m & 0x0000FF00UL) >> 8;
 	block[3] = m & 0x000000FFUL;
 	for(int i=0; i< 4; i++){
-		printf("block[%d] = %lx\n", i, block[i]);
 		text = block[i];
-		printf("text[%d] = %c\n", i, text);
+		printf("%c", text);
 		fwrite(&text, 1,1,fptr);
 	}
-	
-	
 	return 0;
 }
 
@@ -105,41 +119,34 @@ void doseed(void) {
     srand(seed);
 }
 int encrypt(FILE * fp, FILE * keyfp){
-	//m = 32 (block size)
+	// m = 32 (block size)
 	// modulo = 33 bit
-	//read p, g and e2 from key file
+	// read p, g and e2 from key file
 	char buf[4];
 	u_int32_t block[4];
 	u_int32_t m;
 	unsigned long p, e2;
 	int g;
-	int retval = fscanf(keyfp, "%lx", &p) ; 
-	retval = fscanf(keyfp, "%x", &g) ; 
-	retval = fscanf(keyfp, "%lx", &e2) ; 
-	printf("read that p = %ld, g = %d, e2 = %ld\n", p, g, e2);
-	
+	fscanf(keyfp, "%lx", &p) ; 
+	fscanf(keyfp, "%x", &g) ; 
+	fscanf(keyfp, "%lx", &e2) ; 
    	int numRead;
    //reading 4 bytes or 4 characters at a time
+   	printf("(C1, C2) pairs:\n");
 	while((numRead =fread(buf,1,4, fp)) >0){
-		printf("numread = %d\n", numRead);
 		for(int i=0; i< 4; i++){
 			block[i] = 0;
 		}
 		for(int i=0; i< numRead; i++){
 			block[i] = buf[i];
-			printf("block %d is %x\n", i, block[i]);
 		}
 		block[0] = block[0] << 24;
 		block[1] = block[1] << 16;
 		block[2] = block[2] << 8;
 		m = block[0] | block[1] | block[2] | block[3];
-		printf("m is %08lx\n", m);
-		if(m >= p){
-			printf("Error m is not less than p\n");
-		}
 		encrypt_helper(m, p, g, e2);
    	}
-
+   	printf("\n");
    	return 0;
 
 }
@@ -157,26 +164,24 @@ int encrypt_helper(u_int32_t m, unsigned long p, unsigned int g, unsigned long e
 	C[1] = ((modularExponentiation(e2,k,p) * modularExponentiation(m,1,p)))% p ;
 
 	fptr = fopen("ctext.txt", "a");
-	printf("c1= %lx and c2=%lx\n", C[0], C[1]);
+	printf("(%lx, %lx) ", C[0], C[1]);
 	fprintf(fptr, "%ld", C[0]);
 	fprintf(fptr, "%c", ' ');
 	fprintf(fptr, "%ld", C[1]);
 	fprintf(fptr, "%c", ' ');
-	fclose(fptr);
+	fclose(fptr) ;
 	return 0;
 }
 
 
 int keygen(unsigned long seed){
-	clock_t t; 
-    t = clock(); 
 	FILE *fptr;
 	unsigned long p=1,q,e2,d;
 	int g = 2;
 	unsigned long max = 0xFFFFFFFFUL; //gives largest number in 32 bit range
 	// k= 33
-	//e2 = gd mod p
-	//generate safe prime P
+	// e2 = gd mod p
+	// generate safe prime P
 	// select a k-1 bit prime q so that q mod 12 == 5
 	// compute p = 2q + 1 and test whether p is prime
 	
@@ -196,7 +201,6 @@ int keygen(unsigned long seed){
 			//check that p's last bit is 1
 			unsigned long bit = p & 0x000000001UL;
 			if(bit == 1 ){
-				//printf("odd p=%08lx\n", p);
 				if(millerRabin(p,1) == 1) break;
 			}
 		}
@@ -212,19 +216,15 @@ int keygen(unsigned long seed){
 	fprintf(fptr, "%X", g);
 	fprintf(fptr, "%c", ' ');
 	fprintf(fptr, "%lX", e2);
-	fclose(fptr);
+	fclose(fptr) ;
 	fptr = fopen("prikey.txt", "w+");
 	fprintf(fptr, "%lX", p);
 	fprintf(fptr, "%c", ' ');
 	fprintf(fptr, "%X", g);
 	fprintf(fptr, "%c", ' ');
 	fprintf(fptr, "%lX", d);
-	fclose(fptr);
-	t = clock() - t; 
-    double time_taken = ((double)t)/CLOCKS_PER_SEC; // in seconds 
-  
-    printf("kegen() took %f seconds to execute \n", time_taken); 
-	printf(" g=%d, e2=%08lx, p = %08lx,d = %08lx\n", g,e2,p,d);
+	fclose(fptr) ;
+	printf("p  = %08lx\ng  = %d\ne2 = %08lx\nd  = %08lx\n", p,g,e2,d);
 	return 0;
 }
 
