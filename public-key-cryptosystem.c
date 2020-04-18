@@ -26,6 +26,7 @@ int decrypt(FILE * fp, FILE * keyfp);
 int encrypt_helper(u_int32_t m, unsigned long p, unsigned int g, unsigned long e2);
 void doseed(void);
 void checkError(FILE * fp);
+
 int main(int argc, char *argv[]){
 	FILE * fp;
 	FILE * keyfp;
@@ -42,7 +43,6 @@ int main(int argc, char *argv[]){
 		checkError(fp);
 		keyfp = fopen(argv[1], "r");
 		checkError(keyfp);
-		printf("encrypting...\n");
 		encrypt(fp, keyfp);
 	}
 	else if(argc == 4 && strncmp("-d", argv[3], 2) == 0){
@@ -50,7 +50,6 @@ int main(int argc, char *argv[]){
 		checkError(fp);
 		keyfp = fopen(argv[1], "r");
 		checkError(keyfp);
-		printf("decrypting...\n");
 		decrypt(fp, keyfp);
 	}
 	else{
