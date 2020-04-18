@@ -22,7 +22,7 @@ int witness(unsigned long a, unsigned long n);
 unsigned long modularExponentiation(unsigned long a, unsigned long b, unsigned long n);
 int encrypt(FILE * fp,FILE * keyfp);
 int decrypt(FILE * fp, FILE * keyfp);
-unsigned long * encrypt_helper(unsigned long m, unsigned long p, unsigned int g, unsigned long e2);
+int encrypt_helper(u_int32_t m, unsigned long p, unsigned int g, unsigned long e2);
 void doseed(void);
 int main(int argc, char *argv[]){
 	FILE * fp;
@@ -69,7 +69,36 @@ int decrypt(FILE * fp, FILE * keyfp){
 		printf("mod is %lx\n", modularExponentiation(C[0], exp, 1));
 		m = (modularExponentiation(C[0], exp, p) * (C[1] %p) ) % p;
 		printf("m = %ld\n", m);
+		decToAscii(m);
 	}
+	return 0;
+}
+int decToAscii(unsigned long m){
+	FILE * fptr;
+	fptr = fopen("dtext.txt", "a");
+	
+	char str[9];
+	snprintf(str, sizeof(str), "%08lx", m);
+	char tmp[3];
+	char ascii[5];
+	int num;
+	ascii[5] = '\0';
+	int j = 0;
+	char c;
+	for(int i=0; i<8; i+=2){
+		tmp[0] = str[i];
+		tmp[1] = str[i+1];
+		tmp[2] = '\0';
+		num = strtol(tmp, NULL, 16);
+		c = num ;
+		ascii[j] = c;
+		if(num == 0){
+			ascii[j] = '0';
+		}
+		j++;
+	}
+	printf("after ascii conversion : %s", ascii);
+	fwrite(&ascii, 5, 1, fptr);
 	return 0;
 }
 
@@ -83,22 +112,26 @@ int encrypt(FILE * fp, FILE * keyfp){
 	//m = 32 (block size)
 	// modulo = 33 bit
 	//read p, g and e2 from key file
-	unsigned long *C;
-	char buf[5];
-	unsigned long block[4];
-	unsigned long m;
+	char buf[4];
+	u_int32_t block[4];
+	u_int32_t m;
 	unsigned long p, e2;
 	int g;
 	int retval = fscanf(keyfp, "%lx", &p) ; 
 	retval = fscanf(keyfp, "%x", &g) ; 
 	retval = fscanf(keyfp, "%lx", &e2) ; 
 	printf("read that p = %ld, g = %d, e2 = %ld\n", p, g, e2);
-	while(fgets(buf,4, fp) != NULL){
-		buf[4] = '\n';
-		printf("buf is %s\n", buf);
+	
+   	int numRead;
+   //reading 4 bytes or 4 characters at a time
+	while((numRead =fread(buf,1,4, fp)) >0){
+		printf("numread = %d\n", numRead);
 		for(int i=0; i< 4; i++){
-			block[i] = (unsigned long)strtoul(&buf[i], NULL, 10);
-			printf("block %d is %lx\n", i, block[i]);
+			block[i] = 0;
+		}
+		for(int i=0; i< numRead; i++){
+			block[i] = buf[i];
+			printf("block %d is %x\n", i, block[i]);
 		}
 		block[0] = block[0] << 24;
 		block[1] = block[1] << 16;
@@ -108,13 +141,13 @@ int encrypt(FILE * fp, FILE * keyfp){
 		if(m >= p){
 			printf("Error m is not less than p\n");
 		}
-		C = encrypt_helper(m, p, g, e2);
-		printf("C1 = %lx C2 = %lx\n", C[0], C[1]);
+		encrypt_helper(m, p, g, e2);
    	}
+
    	return 0;
 
 }
-unsigned long * encrypt_helper(unsigned long m, unsigned long p, unsigned int g, unsigned long e2){
+int encrypt_helper(u_int32_t m, unsigned long p, unsigned int g, unsigned long e2){
 	FILE * fptr;
 	static unsigned long C[2];
 	// C1 = gk mod p
@@ -122,15 +155,19 @@ unsigned long * encrypt_helper(unsigned long m, unsigned long p, unsigned int g,
 	doseed();
 	unsigned long k =  rand() % (p-1) ;
 	C[0] = modularExponentiation(g, k, p);
+
 	//(A * B) mod C = (A mod C * B mod C) mod C
 	// e2^k * m mod p = (e2^k mod p )* (m mod p) mod p
 	C[1] = ((modularExponentiation(e2,k,p) * modularExponentiation(m,1,p)))% p ;
+
 	fptr = fopen("ctext.txt", "a");
+	printf("c1= %lx and c2=%lx\n", C[0], C[1]);
 	fprintf(fptr, "%ld", C[0]);
 	fprintf(fptr, "%c", ' ');
 	fprintf(fptr, "%ld", C[1]);
+	fprintf(fptr, "%c", ' ');
 	fclose(fptr);
-	return C;
+	return 0;
 }
 
 
