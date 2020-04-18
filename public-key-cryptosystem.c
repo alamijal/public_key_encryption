@@ -16,6 +16,7 @@
 #include<math.h>
 #include <sys/time.h>
 
+int decToAscii(u_int32_t m, FILE * fptr);
 int keygen(unsigned long seed);
 int millerRabin(unsigned long n, int s);
 int witness(unsigned long a, unsigned long n);
@@ -51,14 +52,16 @@ int main(int argc, char *argv[]){
 	return 0;
 }
 int decrypt(FILE * fp, FILE * keyfp){
-	unsigned long p, d, m;
+	FILE * fptr;
+	unsigned long p, d;
+	u_int32_t m;
 	int g;
 	unsigned long C[2];
 	int retval = fscanf(keyfp, "%lx", &p) ; 
 	retval = fscanf(keyfp, "%x", &g) ; 
 	retval = fscanf(keyfp, "%lx", &d) ; 
 	printf("read that p = %lx, g = %d, d = %lx\n", p, g, d);
-	
+	fptr = fopen("dtext.txt", "a");
 	while(fscanf(fp, "%ld %ld",&C[0], &C[1] ) != EOF){
 		printf("C0 = %ld  C1 = %ld\n", C[0], C[1]);
 		//C1 ^p-1- d·C2 mod p = m
@@ -69,36 +72,29 @@ int decrypt(FILE * fp, FILE * keyfp){
 		printf("mod is %lx\n", modularExponentiation(C[0], exp, 1));
 		m = (modularExponentiation(C[0], exp, p) * (C[1] %p) ) % p;
 		printf("m = %ld\n", m);
-		decToAscii(m);
+		decToAscii(m, fptr);
+
 	}
+	fclose(fptr);
 	return 0;
 }
-int decToAscii(unsigned long m){
-	FILE * fptr;
-	fptr = fopen("dtext.txt", "a");
+int decToAscii(u_int32_t m, FILE * fptr){
 	
-	char str[9];
-	snprintf(str, sizeof(str), "%08lx", m);
-	char tmp[3];
-	char ascii[5];
-	int num;
-	ascii[5] = '\0';
-	int j = 0;
-	char c;
-	for(int i=0; i<8; i+=2){
-		tmp[0] = str[i];
-		tmp[1] = str[i+1];
-		tmp[2] = '\0';
-		num = strtol(tmp, NULL, 16);
-		c = num ;
-		ascii[j] = c;
-		if(num == 0){
-			ascii[j] = '0';
-		}
-		j++;
+	char text;
+	u_int32_t block[4];
+	
+	block[0] = (m & 0xFF000000UL) >> 24;
+	block[1] = (m & 0x00FF0000UL) >> 16;
+	block[2] = (m & 0x0000FF00UL) >> 8;
+	block[3] = m & 0x000000FFUL;
+	for(int i=0; i< 4; i++){
+		printf("block[%d] = %lx\n", i, block[i]);
+		text = block[i];
+		printf("text[%d] = %c\n", i, text);
+		fwrite(&text, 1,1,fptr);
 	}
-	printf("after ascii conversion : %s", ascii);
-	fwrite(&ascii, 5, 1, fptr);
+	
+	
 	return 0;
 }
 
